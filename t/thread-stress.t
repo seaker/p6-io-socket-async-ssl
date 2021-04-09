@@ -6,8 +6,8 @@ my constant TEST_PORT = 54332;
 my $ready = Promise.new;
 start react {
     my %conf =
-        private-key-file => 't/certs-and-keys/server.key',
-        certificate-file => 't/certs-and-keys/server-bundle.crt';
+        server-private-key-file => 't/certs-and-keys/server.key',
+        server-certificate-file => 't/certs-and-keys/server-bundle.crt';
     whenever IO::Socket::Async::SSL.listen('localhost', TEST_PORT, |%conf) -> $conn {
         whenever $conn.Supply(:bin) -> $data {
             whenever $conn.write($data) {}
@@ -20,8 +20,8 @@ await $ready;
 await do for ^4 {
     start {
         for 1..50 -> $i {
-            my $ca-file = 't/certs-and-keys/ca.crt';
-            my $conn = await IO::Socket::Async::SSL.connect('localhost', TEST_PORT, :$ca-file);
+            my $server-ca-file = 't/certs-and-keys/ca.crt';
+            my $conn = await IO::Socket::Async::SSL.connect('localhost', TEST_PORT, :$server-ca-file);
             my $expected = "[string $i]" x (8 * $i);
             await $conn.write($expected.encode('ascii'));
             my $got = '';

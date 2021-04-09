@@ -11,8 +11,8 @@ start {
                 if $start eq "Psst, let's talk securely!\n" {
                     my $enc-conn-handshake = IO::Socket::Async::SSL.upgrade-server(
                         $plain-conn,
-                        private-key-file => 't/certs-and-keys/server.key',
-                        certificate-file => 't/certs-and-keys/server-bundle.crt'
+                        server-private-key-file => 't/certs-and-keys/server.key',
+                        server-certificate-file => 't/certs-and-keys/server-bundle.crt'
                     );
                     whenever $enc-conn-handshake -> $enc-conn {
                         uc-service($enc-conn);
@@ -52,7 +52,7 @@ react whenever $plain-conn -> $msg {
     my $enc-conn-handshake = IO::Socket::Async::SSL.upgrade-client(
         $plain-conn,
         host => 'localhost',
-        ca-file => 't/certs-and-keys/ca.crt');
+        server-ca-file => 't/certs-and-keys/ca.crt');
     whenever $enc-conn-handshake -> $enc-conn {
         isa-ok $enc-conn, IO::Socket::Async::SSL, 'Got upgraded connection on client side';
         await $enc-conn.print("hello!\n");

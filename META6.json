@@ -6,7 +6,7 @@
   "authors": [
     "Jonathan Worthington <jnthn@jnthn.net>"
   ],
-  "auth": "jnthn",
+  "auth": "github:seaker",
   "depends": [
     "OpenSSL"
   ],
@@ -14,7 +14,7 @@
     "IO::Socket::Async::SSL": "lib/IO/Socket/Async/SSL.pm6"
   },
   "support": {
-    "source": "https://github.com/jnthn/p6-io-socket-async-ssl.git"
+    "source": "https://github.com/seaker/p6-io-socket-async-ssl.git"
   },
   "license": "Artistic-2.0",
   "tags": [

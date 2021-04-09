@@ -20,6 +20,14 @@ sub SSL_get_verify_result(OpenSSL::SSL::SSL) returns int32 is native(&ssl-lib) {
 sub SSL_CTX_set_cipher_list(OpenSSL::Ctx::SSL_CTX, Str) returns int32
     is native(&ssl-lib) {*}
 
+#??sub SSL_CTX_set_verify(OpenSSL::Ctx::SSL_CTX, int32, &callback(int32, OpaquePointer))
+sub SSL_CTX_set_verify(OpenSSL::Ctx::SSL_CTX, int32, OpaquePointer)
+    is native(&ssl-lib) {*}
+sub SSL_CTX_use_certificate_file(OpenSSL::Ctx::SSL_CTX, Str, int32)
+    returns int32 is native(&ssl-lib) {*}
+sub SSL_CTX_use_PrivateKey_file(OpenSSL::Ctx::SSL_CTX, Str, int32)
+    returns int32 is native(&ssl-lib) {*}
+
 sub d2i_PKCS12(Pointer, CArray[CArray[uint8]], long) returns Pointer is native(&gen-lib) {*}
 sub PKCS12_parse(Pointer, Str, CArray[Pointer], CArray[Pointer], CArray[Pointer])
     returns int32 is native(&gen-lib) {*}
@@ -295,11 +303,13 @@ class IO::Socket::Async::SSL {
     method connect(IO::Socket::Async::SSL:U: Str() $host, Int() $port,
                    :$enc = 'utf8', :$scheduler = $*SCHEDULER,
                    OpenSSL::ProtocolVersion :$version = -1,
-                   :$ca-file, :$ca-path, :$insecure, :$alpn,
+                   :$server-ca-file, :$server-ca-path, :$insecure, :$alpn,
+                   :$client-ca-file, :$client-private-key-file,
                    Str :$ciphers --> Promise) {
         self!client-setup:
             { IO::Socket::Async.connect($host, $port, :$scheduler) },
-            :$enc, :$version, :$ca-file, :$ca-path, :$insecure,
+            :$enc, :$version, :$server-ca-file, :$server-ca-path, :$insecure,
+            :$client-ca-file, :$client-private-key-file,
             :$alpn, :$ciphers, :$host;
      }
 
@@ -311,17 +321,19 @@ class IO::Socket::Async::SSL {
     #| upgrade succeeds, or broken if it fails.
     method upgrade-client(IO::Socket::Async::SSL:U: IO::Socket::Async:D $conn,
                           :$enc = 'utf8', OpenSSL::ProtocolVersion :$version = -1,
-                          :$ca-file, :$ca-path, :$insecure, :$alpn,
+                          :$server-ca-file, :$server-ca-path, :$insecure, :$alpn,
+                          :$client-ca-file, :$client-private-key-file,
                           Str :$ciphers, Str :$host --> Promise) {
         self!client-setup:
             { Promise.kept($conn) },
-            :$enc, :$version, :$ca-file, :$ca-path, :$insecure,
-            :$alpn, :$ciphers, :$host;
+            :$enc, :$version, :$server-ca-file, :$server-ca-path, :$insecure,
+            :$alpn, :$ciphers, :$client-ca-file, :$client-private-key-file, :$host;
      }
 
      method !client-setup(&connection-source,
                           :$enc = 'utf8', OpenSSL::ProtocolVersion :$version,
-                          :$ca-file, :$ca-path, :$insecure, :$alpn, :$ciphers,
+                          :$server-ca-file, :$server-ca-path, :$insecure, :$alpn, :$ciphers,
+                          :$client-ca-file, :$client-private-key-file,
                           Str :$host) {
         start {
             my $sock = await connection-source();
@@ -329,11 +341,25 @@ class IO::Socket::Async::SSL {
             $lib-lock.protect: {
                 my $ctx = self!build-client-ctx($version);
                 SSL_CTX_set_default_verify_paths($ctx);
-                if defined($ca-file) || defined($ca-path) {
+                if defined($server-ca-file) || defined($server-ca-path) {
                     SSL_CTX_load_verify_locations($ctx,
-                        defined($ca-file) ?? $ca-file.Str !! Str,
-                        defined($ca-path) ?? $ca-path.Str !! Str);
+                        defined($server-ca-file) ?? $server-ca-file.Str !! Str,
+                        defined($server-ca-path) ?? $server-ca-path.Str !! Str);
                 }
+
+                if defined($client-ca-file) {
+                    # 3rd param of SSL_CTX_use_certificate_file(), 1: SSL_FILETYPE_PEM
+                    if SSL_CTX_use_certificate_file($ctx, $client-ca-file, 1) != 1 {
+                        die "Error setting up client certificate";
+                    }
+                }
+
+                if defined($client-private-key-file) {
+                    if SSL_CTX_use_PrivateKey_file($ctx, $client-private-key-file, 1) != 1 {
+                        die "Error setting up client key";
+                    }
+                }
+
                 with $ciphers {
                     if SSL_CTX_set_cipher_list($ctx, $ciphers) == 0 {
                         die "No ciphers from the provided list were selected";
@@ -387,12 +413,14 @@ class IO::Socket::Async::SSL {
     method listen(IO::Socket::Async::SSL:U: Str() $host, Int() $port,
                   :$enc = 'utf8', :$scheduler = $*SCHEDULER,
                   OpenSSL::ProtocolVersion :$version = -1,
-                  :$certificate-file, :$private-key-file, :$alpn,
+                  :$server-certificate-file, :$server-private-key-file, :$alpn,
+                  :$ca-certificate-file, :$ca-certificate-path,
                   Str :$ciphers, :$prefer-server-ciphers, :$no-compression,
                   :$no-session-resumption-on-renegotiation --> Supply) {
         self!server-setup:
             IO::Socket::Async.listen($host, $port, :$scheduler),
-            :$enc, :$version, :$certificate-file, :$private-key-file,
+            :$enc, :$version, :$server-certificate-file, :$server-private-key-file,
+            :$ca-certificate-file, :$ca-certificate-path,
             :$alpn, :$ciphers, :$prefer-server-ciphers, :$no-compression,
             :$no-session-resumption-on-renegotiation;
     }
@@ -405,14 +433,16 @@ class IO::Socket::Async::SSL {
     #| or quit if it fails.
     method upgrade-server(IO::Socket::Async::SSL:U: IO::Socket::Async:D $socket,
                   :$enc = 'utf8', OpenSSL::ProtocolVersion :$version = -1,
-                  :$certificate-file, :$private-key-file, :$alpn,
+                  :$server-certificate-file, :$server-private-key-file, :$alpn,
+                  :$ca-certificate-file, :$ca-certificate-path,
                   Str :$ciphers, :$prefer-server-ciphers, :$no-compression,
                   :$no-session-resumption-on-renegotiation --> Supply) {
         # Get the setup work onto another thread.
         supply whenever Promise.kept() {
             my $setup-supply = self!server-setup:
                 $socket,
-                :$enc, :$version, :$certificate-file, :$private-key-file,
+                :$enc, :$version, :$server-certificate-file, :$server-private-key-file,
+                :$ca-certificate-file, :$ca-certificate-path,
                 :$alpn, :$ciphers, :$prefer-server-ciphers, :$no-compression,
                 :$no-session-resumption-on-renegotiation;
             whenever $setup-supply {
@@ -423,7 +453,8 @@ class IO::Socket::Async::SSL {
 
     method !server-setup($connection-source,
                   :$enc, OpenSSL::ProtocolVersion :$version,
-                  :$certificate-file, :$private-key-file, :$alpn,
+                  :$server-certificate-file, :$server-private-key-file, :$alpn,
+                  :$ca-certificate-file, :$ca-certificate-path,
                   Str :$ciphers, :$prefer-server-ciphers, :$no-compression,
                   :$no-session-resumption-on-renegotiation) {
         sub alpn-selector($ssl, $out, $outlen, $in, $inlen, $arg) {
@@ -455,35 +486,35 @@ class IO::Socket::Async::SSL {
             my $ctx;
             $lib-lock.protect: {
                 $ctx = self!build-server-ctx($version);
-                my ($have-cert, $have-pkey);
-                with $certificate-file {
 
+                my ($have-cert, $have-pkey);
+                with $server-certificate-file {
                     die X::IO::Socket::Async::SSL.new(
-                            message => "can not read certificate-file: $certificate-file"
-                        ) unless $certificate-file.IO.r;
+                            message => "can not read server-certificate-file: $server-certificate-file"
+                        ) unless $server-certificate-file.IO.r;
 
                     if 1 == OpenSSL::Ctx::SSL_CTX_use_certificate_chain_file($ctx,
-                        $certificate-file.Str)
+                        $server-certificate-file.Str)
                     {
                         $have-cert = 'PEM';
                     } elsif 1 == OpenSSL::Ctx::SSL_CTX_use_certificate_file($ctx,
-                            $certificate-file.Str, 2)
+                            $server-certificate-file.Str, 2)
                     {
                         $have-cert = 'DER';
                     } else {
                         # Failed to import either PEM chain or ASN1 certificate file
                         # Proceeding with PKCS12
-                        my $p12buf = slurp $certificate-file, :bin;
+                        my $p12buf = slurp $server-certificate-file, :bin;
                         my Pointer $pkcs12 = d2i_PKCS12(Pointer,
                             CArray[CArray[uint8]].new([CArray[uint8].new($p12buf)]),
                             $p12buf.elems);
-                        die "Failed to import $certificate-file as PEM/ASN1/PKCS12"
+                        die "Failed to import $server-certificate-file as PEM/ASN1/PKCS12"
                             unless so $pkcs12;
                         my $pkey = CArray[Pointer].new([Pointer.new]);
                         my $cert = CArray[Pointer].new([Pointer.new]);
                         my $chain = CArray[Pointer].new([Pointer.new]);
                         # TODO: Passphrase handling
-                        die "Failed to parse $certificate-file as PKCS12"
+                        die "Failed to parse $server-certificate-file as PKCS12"
                             unless 1 == PKCS12_parse($pkcs12, '', $pkey, $cert, $chain);
                         if so $pkey[0] {
                             $have-pkey = 'PKCS12';
@@ -507,13 +538,25 @@ class IO::Socket::Async::SSL {
                             OpenSSL::Stack::sk_free(nativecast(OpenSSL::Stack, $chain[0]));
                         }
                     }
-                    die "No server certificate in $certificate-file" without $have-cert;
+                    die "No server certificate in $server-certificate-file" without $have-cert;
                 }
-                with $private-key-file {
+                with $server-private-key-file {
                     die "Private key already added as $have-pkey" with $have-pkey;
                     OpenSSL::Ctx::SSL_CTX_use_PrivateKey_file($ctx,
-                        $private-key-file.Str, 1);
+                        $server-private-key-file.Str, 1);
                 }
+
+                if defined($ca-certificate-file) || defined($ca-certificate-path) {
+                    SSL_CTX_set_default_verify_paths($ctx);
+
+                    SSL_CTX_load_verify_locations($ctx,
+                        defined($ca-certificate-file) ?? $ca-certificate-file.Str !! Str,
+                        defined($ca-certificate-path) ?? $ca-certificate-path.Str !! Str);
+
+                    # 3: SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT
+                    SSL_CTX_set_verify($ctx, 3, OpaquePointer);
+                }
+
                 with get_dh2048() {
                     if SSL_CTX_ctrl_DH($ctx, SSL_CTRL_SET_TMP_DH, 0, $_) == 0 {
                         warn "IO::Socket::Async::SSL: Failed to set temporary DH";

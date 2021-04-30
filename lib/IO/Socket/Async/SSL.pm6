@@ -110,202 +110,211 @@ my constant SSL_OP_NO_COMPRESSION = 0x20000;
 my constant SSL_OP_CIPHER_SERVER_PREFERENCE = 0x400000;
 
 # DH setup-related bits, so we can use ciphers that need this
-my constant BIGNUM = Pointer;
-my class DH is repr('CStruct') {
-    has int32 $.pad;
-    has int32 $.version;
-    has BIGNUM $.p;
-    has BIGNUM $.g;
-    has int32 $.length is rw;
-    # There are more fields in this struct, but we don't care about them in this
-    # module.
+    my constant BIGNUM = Pointer;
+    my class DH is repr('CStruct') {
+        has int32 $.pad;
+        has int32 $.version;
+        has BIGNUM $.p;
+        has BIGNUM $.g;
+        has int32 $.length is rw;
+        # There are more fields in this struct, but we don't care about them in this
+        # module.
 
-    method set-p(\p) { $!p := p }
-    method set-g(\g) { $!g := g }
-};
-sub DH_new() returns DH is native(&gen-lib) {*}
-sub DH_free(DH) is native(&gen-lib) {*}
-sub BN_bin2bn(Blob, int32, BIGNUM) returns BIGNUM is native(&gen-lib) {*}
-sub SSL_CTX_ctrl_DH(OpenSSL::Ctx::SSL_CTX, int32, int32, DH) is symbol('SSL_CTX_ctrl')
-    returns int32 is native(&ssl-lib) {*}
-sub get_dh2048() returns DH {
-    # Based on output from `openssl dhparam -dsaparam -C 2048`
-    my constant dh2048_p = Blob.new:
-            0xD3,0x7F,0x47,0x2C,0xAF,0x38,0xD3,0x98,0x2E,0x89,
-            0x92,0xB9,0x06,0x3A,0x67,0x2A,0xC2,0x0F,0x01,0x55,
-            0xB0,0xD6,0x16,0xF3,0x52,0x81,0x99,0xB3,0xD6,0xBC,
-            0xE7,0x88,0xD2,0x6F,0x2A,0x21,0x63,0x79,0x24,0xCF,
-            0xCF,0x43,0xCE,0x02,0xFC,0x67,0x37,0xB4,0x94,0xDE,
-            0xE4,0x47,0x0F,0x70,0xF9,0xB1,0x9E,0x5B,0xA8,0xD7,
-            0xC3,0x56,0x27,0xBC,0xE2,0xCE,0x94,0x5D,0xD5,0x01,
-            0xE0,0xE3,0x47,0x8F,0x37,0xBA,0xCC,0xE2,0x77,0x7C,
-            0x3B,0x18,0x15,0x57,0x80,0x7F,0xCC,0x77,0xB5,0x26,
-            0x55,0x13,0x5F,0xC7,0xAE,0xDF,0xE0,0x5F,0x82,0xB3,
-            0x75,0xDE,0x8D,0x1F,0x5F,0xF6,0x9E,0x80,0x1B,0x06,
-            0xA5,0x1B,0x8B,0xE5,0x46,0xFA,0x8C,0x8A,0x89,0xDF,
-            0x36,0x24,0x01,0x79,0xD2,0xC3,0x23,0x9C,0xAA,0xE8,
-            0x30,0x98,0x67,0xCF,0xC9,0xA3,0x83,0xE1,0x58,0xB4,
-            0xED,0x8F,0xD3,0xF8,0x58,0xF1,0xF8,0x83,0x97,0xE1,
-            0x25,0x4F,0x1F,0xE6,0x12,0xDE,0x3F,0xF5,0x88,0x4D,
-            0x1D,0x7F,0x85,0x9D,0x3A,0xDF,0xC6,0x8A,0xB8,0xD7,
-            0xD8,0xA1,0xFB,0xD4,0xF2,0x24,0x96,0xBF,0x24,0x97,
-            0x09,0x71,0x95,0xCD,0xE8,0x36,0x86,0x7F,0x34,0x51,
-            0xC0,0x6C,0xB8,0x51,0x6A,0x0C,0xE7,0x44,0x54,0x51,
-            0xDA,0xAF,0xFB,0x14,0xC7,0xC5,0xD1,0x47,0x43,0xD6,
-            0x04,0x5C,0x1F,0x3E,0x2E,0x9F,0x52,0x94,0x87,0xD9,
-            0x66,0x91,0xB7,0x8C,0x7E,0x72,0xB7,0x63,0xCC,0x08,
-            0x36,0x4A,0xD2,0x94,0x86,0x58,0x3B,0xDE,0xF0,0x42,
-            0x12,0xCC,0xED,0x40,0xF5,0xD9,0xE0,0xA8,0xB5,0x63,
-            0x40,0xA6,0xE7,0xAE,0xD8,0xDB;
-    my constant dh2048_g = Blob.new:
-            0xC9,0x1E,0xB2,0xAE,0x8F,0xC9,0x94,0xD9,0x99,0x85,
-            0x49,0x90,0xA8,0x2A,0x77,0xB4,0xE9,0x11,0xDA,0x76,
-            0x92,0x76,0x17,0x27,0x75,0xC8,0x7D,0x77,0xF4,0xAA,
-            0xA9,0x23,0xD0,0xD9,0x7D,0x05,0x15,0x49,0xEC,0x47,
-            0xE3,0xA5,0x01,0x38,0xF8,0x06,0xE8,0x57,0x0D,0x94,
-            0x8B,0x3F,0x1C,0x22,0x39,0x2D,0xE3,0xFD,0xE4,0xFE,
-            0xC7,0x22,0xA9,0xE4,0xB7,0xFF,0x05,0x27,0x12,0xEC,
-            0x8A,0x72,0x5A,0x9D,0xBC,0xB0,0xF2,0x19,0x40,0xA0,
-            0x07,0x81,0x47,0x92,0x91,0xD6,0xF6,0xC8,0x34,0xAC,
-            0x78,0x8E,0xA1,0x51,0x91,0x98,0xD7,0x23,0x22,0xAD,
-            0x7A,0x50,0x9B,0x99,0x88,0x5B,0x2D,0x64,0xD2,0x16,
-            0xB2,0x72,0xF2,0x6B,0x4F,0xC7,0x18,0xE6,0x01,0x7E,
-            0xDE,0xEA,0xEA,0x1B,0x04,0x0D,0x30,0x08,0xAF,0xCF,
-            0x2C,0x16,0xC1,0x24,0xC4,0x69,0x4D,0x84,0x22,0xDB,
-            0x25,0xD9,0xA2,0x81,0x4B,0x73,0xF0,0x75,0x09,0x22,
-            0xEF,0xE3,0x0A,0x2A,0x2F,0xEC,0xFC,0x37,0x25,0x26,
-            0x93,0x9B,0x1A,0x63,0x22,0x4D,0xFF,0x4D,0x27,0x92,
-            0x99,0xCE,0xFF,0xB6,0xD0,0xA8,0x89,0x53,0xF1,0x92,
-            0x25,0xAA,0xBA,0xA7,0xA1,0xD9,0xDA,0xFB,0x64,0x61,
-            0xD3,0xBB,0x82,0x8E,0xD5,0xE0,0xE2,0x58,0x45,0xF9,
-            0xDB,0xC7,0xD0,0x48,0x39,0xEA,0x11,0xED,0xFA,0x33,
-            0x4A,0xCC,0x19,0x22,0xCD,0x89,0xE3,0x66,0x96,0x1F,
-            0x05,0x8C,0xA8,0x41,0x4B,0x37,0xFD,0xDE,0x73,0x35,
-            0x78,0x0F,0x0C,0x21,0x39,0x54,0xAB,0x3E,0x17,0xD5,
-            0x6C,0xF4,0x52,0xD5,0x18,0x8B,0x0F,0xE7,0x10,0x1C,
-            0x3C,0x2C,0x60,0x71,0x73,0xFB;
-    my DH $dh = DH_new();
-    without $dh {
-        fail("Could not allocate DH");
+        method set-p(\p) { $!p := p }
+        method set-g(\g) { $!g := g }
+    };
+    sub DH_new() returns DH is native(&gen-lib) {*}
+    sub DH_free(DH) is native(&gen-lib) {*}
+    sub BN_bin2bn(Blob, int32, BIGNUM) returns BIGNUM is native(&gen-lib) {*}
+    sub SSL_CTX_ctrl_DH(OpenSSL::Ctx::SSL_CTX, int32, int32, DH) is symbol('SSL_CTX_ctrl')
+        returns int32 is native(&ssl-lib) {*}
+    sub get_dh2048() returns DH {
+        # Based on output from `openssl dhparam -dsaparam -C 2048`
+        my constant dh2048_p = Blob.new:
+                0xD3,0x7F,0x47,0x2C,0xAF,0x38,0xD3,0x98,0x2E,0x89,
+                0x92,0xB9,0x06,0x3A,0x67,0x2A,0xC2,0x0F,0x01,0x55,
+                0xB0,0xD6,0x16,0xF3,0x52,0x81,0x99,0xB3,0xD6,0xBC,
+                0xE7,0x88,0xD2,0x6F,0x2A,0x21,0x63,0x79,0x24,0xCF,
+                0xCF,0x43,0xCE,0x02,0xFC,0x67,0x37,0xB4,0x94,0xDE,
+                0xE4,0x47,0x0F,0x70,0xF9,0xB1,0x9E,0x5B,0xA8,0xD7,
+                0xC3,0x56,0x27,0xBC,0xE2,0xCE,0x94,0x5D,0xD5,0x01,
+                0xE0,0xE3,0x47,0x8F,0x37,0xBA,0xCC,0xE2,0x77,0x7C,
+                0x3B,0x18,0x15,0x57,0x80,0x7F,0xCC,0x77,0xB5,0x26,
+                0x55,0x13,0x5F,0xC7,0xAE,0xDF,0xE0,0x5F,0x82,0xB3,
+                0x75,0xDE,0x8D,0x1F,0x5F,0xF6,0x9E,0x80,0x1B,0x06,
+                0xA5,0x1B,0x8B,0xE5,0x46,0xFA,0x8C,0x8A,0x89,0xDF,
+                0x36,0x24,0x01,0x79,0xD2,0xC3,0x23,0x9C,0xAA,0xE8,
+                0x30,0x98,0x67,0xCF,0xC9,0xA3,0x83,0xE1,0x58,0xB4,
+                0xED,0x8F,0xD3,0xF8,0x58,0xF1,0xF8,0x83,0x97,0xE1,
+                0x25,0x4F,0x1F,0xE6,0x12,0xDE,0x3F,0xF5,0x88,0x4D,
+                0x1D,0x7F,0x85,0x9D,0x3A,0xDF,0xC6,0x8A,0xB8,0xD7,
+                0xD8,0xA1,0xFB,0xD4,0xF2,0x24,0x96,0xBF,0x24,0x97,
+                0x09,0x71,0x95,0xCD,0xE8,0x36,0x86,0x7F,0x34,0x51,
+                0xC0,0x6C,0xB8,0x51,0x6A,0x0C,0xE7,0x44,0x54,0x51,
+                0xDA,0xAF,0xFB,0x14,0xC7,0xC5,0xD1,0x47,0x43,0xD6,
+                0x04,0x5C,0x1F,0x3E,0x2E,0x9F,0x52,0x94,0x87,0xD9,
+                0x66,0x91,0xB7,0x8C,0x7E,0x72,0xB7,0x63,0xCC,0x08,
+                0x36,0x4A,0xD2,0x94,0x86,0x58,0x3B,0xDE,0xF0,0x42,
+                0x12,0xCC,0xED,0x40,0xF5,0xD9,0xE0,0xA8,0xB5,0x63,
+                0x40,0xA6,0xE7,0xAE,0xD8,0xDB;
+        my constant dh2048_g = Blob.new:
+                0xC9,0x1E,0xB2,0xAE,0x8F,0xC9,0x94,0xD9,0x99,0x85,
+                0x49,0x90,0xA8,0x2A,0x77,0xB4,0xE9,0x11,0xDA,0x76,
+                0x92,0x76,0x17,0x27,0x75,0xC8,0x7D,0x77,0xF4,0xAA,
+                0xA9,0x23,0xD0,0xD9,0x7D,0x05,0x15,0x49,0xEC,0x47,
+                0xE3,0xA5,0x01,0x38,0xF8,0x06,0xE8,0x57,0x0D,0x94,
+                0x8B,0x3F,0x1C,0x22,0x39,0x2D,0xE3,0xFD,0xE4,0xFE,
+                0xC7,0x22,0xA9,0xE4,0xB7,0xFF,0x05,0x27,0x12,0xEC,
+                0x8A,0x72,0x5A,0x9D,0xBC,0xB0,0xF2,0x19,0x40,0xA0,
+                0x07,0x81,0x47,0x92,0x91,0xD6,0xF6,0xC8,0x34,0xAC,
+                0x78,0x8E,0xA1,0x51,0x91,0x98,0xD7,0x23,0x22,0xAD,
+                0x7A,0x50,0x9B,0x99,0x88,0x5B,0x2D,0x64,0xD2,0x16,
+                0xB2,0x72,0xF2,0x6B,0x4F,0xC7,0x18,0xE6,0x01,0x7E,
+                0xDE,0xEA,0xEA,0x1B,0x04,0x0D,0x30,0x08,0xAF,0xCF,
+                0x2C,0x16,0xC1,0x24,0xC4,0x69,0x4D,0x84,0x22,0xDB,
+                0x25,0xD9,0xA2,0x81,0x4B,0x73,0xF0,0x75,0x09,0x22,
+                0xEF,0xE3,0x0A,0x2A,0x2F,0xEC,0xFC,0x37,0x25,0x26,
+                0x93,0x9B,0x1A,0x63,0x22,0x4D,0xFF,0x4D,0x27,0x92,
+                0x99,0xCE,0xFF,0xB6,0xD0,0xA8,0x89,0x53,0xF1,0x92,
+                0x25,0xAA,0xBA,0xA7,0xA1,0xD9,0xDA,0xFB,0x64,0x61,
+                0xD3,0xBB,0x82,0x8E,0xD5,0xE0,0xE2,0x58,0x45,0xF9,
+                0xDB,0xC7,0xD0,0x48,0x39,0xEA,0x11,0xED,0xFA,0x33,
+                0x4A,0xCC,0x19,0x22,0xCD,0x89,0xE3,0x66,0x96,0x1F,
+                0x05,0x8C,0xA8,0x41,0x4B,0x37,0xFD,0xDE,0x73,0x35,
+                0x78,0x0F,0x0C,0x21,0x39,0x54,0xAB,0x3E,0x17,0xD5,
+                0x6C,0xF4,0x52,0xD5,0x18,0x8B,0x0F,0xE7,0x10,0x1C,
+                0x3C,0x2C,0x60,0x71,0x73,0xFB;
+        my DH $dh = DH_new();
+        without $dh {
+            fail("Could not allocate DH");
+        }
+        $dh.set-p: BN_bin2bn(dh2048_p, dh2048_p.elems, BIGNUM);
+        $dh.set-g: BN_bin2bn(dh2048_g, dh2048_g.elems, BIGNUM);
+        if !$dh.p || !$dh.g {
+            DH_free($dh);
+            fail("Failed to set up DH");
+        }
+        $dh.length = 256;
+        return $dh;
     }
-    $dh.set-p: BN_bin2bn(dh2048_p, dh2048_p.elems, BIGNUM);
-    $dh.set-g: BN_bin2bn(dh2048_g, dh2048_g.elems, BIGNUM);
-    if !$dh.p || !$dh.g {
-        DH_free($dh);
-        fail("Failed to set up DH");
-    }
-    $dh.length = 256;
-    return $dh;
-}
 
 # ECDH setup
-my constant EC_KEY = Pointer;
-my constant EC_GROUP = Pointer;
-my constant NID_X9_62_prime256v1 = 415;
-sub EC_KEY_new() returns EC_KEY is native(&gen-lib) {*}
-sub EC_KEY_set_group(EC_KEY, EC_GROUP) returns int32 is native(&gen-lib) {*}
-sub EC_GROUP_new_by_curve_name(int32) returns EC_GROUP is native(&gen-lib) {*}
-sub SSL_CTX_ctrl_ECDH(OpenSSL::Ctx::SSL_CTX, int32, int32, EC_KEY) is symbol('SSL_CTX_ctrl')
-    returns int32 is native(&ssl-lib) {*}
-sub get_ecdh() {
-    my $ecdh = EC_KEY_new();
-    without $ecdh {
-        fail("Failed to allocate ECDH key");
+    my constant EC_KEY = Pointer;
+    my constant EC_GROUP = Pointer;
+    my constant NID_X9_62_prime256v1 = 415;
+    sub EC_KEY_new() returns EC_KEY is native(&gen-lib) {*}
+    sub EC_KEY_set_group(EC_KEY, EC_GROUP) returns int32 is native(&gen-lib) {*}
+    sub EC_GROUP_new_by_curve_name(int32) returns EC_GROUP is native(&gen-lib) {*}
+    sub SSL_CTX_ctrl_ECDH(OpenSSL::Ctx::SSL_CTX, int32, int32, EC_KEY) is symbol('SSL_CTX_ctrl')
+        returns int32 is native(&ssl-lib) {*}
+    sub get_ecdh() {
+        my $ecdh = EC_KEY_new();
+        without $ecdh {
+            fail("Failed to allocate ECDH key");
+        }
+        if EC_KEY_set_group($ecdh, EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)) != 1 {
+            fail("Failed to set ECDH curve group");
+        }
+        return $ecdh;
     }
-    if EC_KEY_set_group($ecdh, EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)) != 1 {
-        fail("Failed to set ECDH curve group");
-    }
-    return $ecdh;
-}
 
 # Per OpenSSL module, make a simple call to ensure libeay32.dll is loaded before
 # ssleay32.dll on Windows.
-OpenSSL::EVP::EVP_aes_128_cbc();
+    OpenSSL::EVP::EVP_aes_128_cbc();
 
 # On first load of the module, initialize the library.
-try {
-    CATCH {
-        default { OpenSSL::SSL::OPENSSL_init_ssl(0, OpaquePointer); }
+    try {
+        CATCH {
+            default { OpenSSL::SSL::OPENSSL_init_ssl(0, OpaquePointer); }
+        }
+        OpenSSL::SSL::SSL_library_init();
+        OpenSSL::SSL::SSL_load_error_strings();
     }
-    OpenSSL::SSL::SSL_library_init();
-    OpenSSL::SSL::SSL_load_error_strings();
-}
 
 # For now, we'll put a lock around all of our interactions with the library.
 # There are smarter things possible.
-my $lib-lock = Lock.new;
+    my $lib-lock = Lock.new;
 
-class X::IO::Socket::Async::SSL is Exception {
-    has Str $.message;
-}
-class X::IO::Socket::Async::SSL::Verification is X::IO::Socket::Async::SSL {}
+    class X::IO::Socket::Async::SSL is Exception {
+        has Str $.message;
+    }
+    class X::IO::Socket::Async::SSL::Verification is X::IO::Socket::Async::SSL {}
 
 #| An asynchronous socket with Transport Layer Security. Has an API very
 #| similar to the builtin IO::Socket::Async.
-class IO::Socket::Async::SSL {
-    has IO::Socket::Async $!sock;
-    has OpenSSL::Ctx::SSL_CTX $!ctx;
-    has OpenSSL::SSL::SSL $!ssl;
-    has $!read-bio;
-    has $!write-bio;
-    has $!connected-promise;
-    has $!accepted-promise;
-    has $!shutdown-promise;
-    has $!closed;
-    has $.enc;
-    has $.insecure;
-    has $!host;
-    has $!alpn;
-    has $.alpn-result;
-    has Supplier::Preserving $!bytes-received;
-    has @!outstanding-writes;
+    class IO::Socket::Async::SSL {
+        has IO::Socket::Async $!sock;
+        has OpenSSL::Ctx::SSL_CTX $!ctx;
+        has OpenSSL::SSL::SSL $!ssl;
+        has $!read-bio;
+        has $!write-bio;
+        has $!connected-promise;
+        has $!accepted-promise;
+        has $!shutdown-promise;
+        has $!closed;
+        has $.enc;
+        has $.insecure;
+        has $!host;
+        has $!alpn;
+        has $.alpn-result;
+        has Supplier::Preserving $!bytes-received;
+        has @!outstanding-writes;
 
-    method new() {
-        die "Cannot create an asynchronous SSL socket directly; please use\n" ~
-            "IO::Socket::Async::SSL.connect or IO::Socket::Async::SSL.listen";
-    }
+        method new() {
+            die "Cannot create an asynchronous SSL socket directly; please use\n" ~
+                "IO::Socket::Async::SSL.connect or IO::Socket::Async::SSL.listen";
+        }
 
-    submethod BUILD(:$!sock, :$!enc, OpenSSL::Ctx::SSL_CTX :$!ctx, :$!ssl,
-                    :$!read-bio, :$!write-bio,
-                    :$!connected-promise, :$!accepted-promise, :$!host, :$!alpn,
-                    :$!insecure = False) {
-        $!bytes-received .= new;
-        $!sock.Supply(:bin).tap:
-            -> Blob $data {
-                $lib-lock.protect: {
-                    if $!ssl {
-                        OpenSSL::Bio::BIO_write($!read-bio, $data, $data.bytes);
-                        self!handle-buffers();
-                    }
-                }
-            },
-            done => {
-                $lib-lock.protect: -> {
-                    self!handle-buffers();
-                    with $!connected-promise {
-                        if .status == Planned {
-                            .break: X::IO::Socket::Async::SSL.new:
-                                message => 'The socket was closed during negotiation';
+        submethod BUILD(:$!sock, :$!enc, OpenSSL::Ctx::SSL_CTX :$!ctx, :$!ssl,
+                        :$!read-bio, :$!write-bio,
+                        :$!connected-promise, :$!accepted-promise, :$!host, :$!alpn,
+                        :$!insecure = False) {
+            $!bytes-received .= new;
+            $!sock.Supply(:bin).tap:
+                -> Blob $data {
+                    $lib-lock.protect: {
+                        if $!ssl {
+                            OpenSSL::Bio::BIO_write($!read-bio, $data, $data.bytes);
+                            put "received {$data.bytes} bytes";
+                            put 'ck BUILD sock tap';
+                            self!handle-buffers();
                         }
                     }
-                }
-                $!bytes-received.done;
-            },
-            quit => {
-                $!bytes-received.quit($_);
-            };
-        self!handle-buffers();
-    }
+                },
+                done => {
+                    $lib-lock.protect: -> {
+                        put 'ck BUILD sock done';
+                        self!handle-buffers();
+                        with $!connected-promise {
+                            put 'status ', .status;
+                            if .status == Planned {
+                                .break: X::IO::Socket::Async::SSL.new:
+                                    message => 'The socket was closed during negotiation';
+                            }
+                        }
+                    }
+                    $!bytes-received.done;
+                },
+                quit => {
+                    put 'BUILD sock quit';
+                    $!bytes-received.quit($_);
+                };
+            put 'ck BUILD end';
+            self!handle-buffers();
+        }
 
-    #| Establish a TLS connection. Returns a Promise that will be kept
-    #| with an IO::Socket::Async::SSL instance if the connection is
-    #| successful, or broken if the connection fails.
-    method connect(IO::Socket::Async::SSL:U: Str() $host, Int() $port,
-                   :$enc = 'utf8', :$scheduler = $*SCHEDULER,
-                   OpenSSL::ProtocolVersion :$version = -1,
-                   :$server-ca-file, :$server-ca-path, :$insecure, :$alpn,
-                   :$client-ca-file, :$client-private-key-file,
-                   Str :$ciphers --> Promise) {
+        #| Establish a TLS connection. Returns a Promise that will be kept
+        #| with an IO::Socket::Async::SSL instance if the connection is
+        #| successful, or broken if the connection fails.
+        method connect(IO::Socket::Async::SSL:U: Str() $host, Int() $port,
+                       :$enc = 'utf8', :$scheduler = $*SCHEDULER,
+                       OpenSSL::ProtocolVersion :$version = -1,
+                       :$server-ca-file, :$server-ca-path, :$insecure, :$alpn,
+                       :$client-ca-file, :$client-private-key-file,
+                       Str :$ciphers --> Promise) {
+        put "connect() server-ca-file «{ $server-ca-file // '' }» server-ca-path { $server-ca-path // '' } " ~
+            "client-ca-file «{ $client-ca-file // '' }» client-private-key-file «{ $client-private-key-file // '' }» " ~
+            "insecure «{ $insecure // '' }»";
         self!client-setup:
             { IO::Socket::Async.connect($host, $port, :$scheduler) },
             :$enc, :$version, :$server-ca-file, :$server-ca-path, :$insecure,
@@ -324,6 +333,9 @@ class IO::Socket::Async::SSL {
                           :$server-ca-file, :$server-ca-path, :$insecure, :$alpn,
                           :$client-ca-file, :$client-private-key-file,
                           Str :$ciphers, Str :$host --> Promise) {
+        put "upgrade-client() server-ca-file «{ $server-ca-file // '' }» server-ca-path { $server-ca-path // '' } " ~
+            "client-ca-file «{ $client-ca-file // '' }» client-private-key-file «{ $client-private-key-file // '' }» " ~
+            "insecure «{ $insecure // '' }»";
         self!client-setup:
             { Promise.kept($conn) },
             :$enc, :$version, :$server-ca-file, :$server-ca-path, :$insecure,
@@ -335,6 +347,9 @@ class IO::Socket::Async::SSL {
                           :$server-ca-file, :$server-ca-path, :$insecure, :$alpn, :$ciphers,
                           :$client-ca-file, :$client-private-key-file,
                           Str :$host) {
+        put "client-setup() server-ca-file «{ $server-ca-file // '' }» server-ca-path { $server-ca-path // '' } " ~
+            "client-ca-file «{ $client-ca-file // '' }» client-private-key-file «{ $client-private-key-file // '' }» " ~
+            "insecure «{ $insecure // '' }»";
         start {
             my $sock = await connection-source();
             my $connected-promise = Promise.new;
@@ -346,18 +361,25 @@ class IO::Socket::Async::SSL {
                         defined($server-ca-file) ?? $server-ca-file.Str !! Str,
                         defined($server-ca-path) ?? $server-ca-path.Str !! Str);
                 }
+                warn 'server certificate not provided' unless defined($server-ca-file);
 
                 if defined($client-ca-file) {
-                    # 3rd param of SSL_CTX_use_certificate_file(), 1: SSL_FILETYPE_PEM
+                    # 3rd param of SSL_CTX_use_certificate_file(), 1: SSL_FILETYPE_PEM, 2??
                     if SSL_CTX_use_certificate_file($ctx, $client-ca-file, 1) != 1 {
                         die "Error setting up client certificate";
                     }
+                    put 'client certificate set up';
+                } else {
+                    warn 'client certificate not provided';
                 }
 
                 if defined($client-private-key-file) {
                     if SSL_CTX_use_PrivateKey_file($ctx, $client-private-key-file, 1) != 1 {
                         die "Error setting up client key";
                     }
+                    put 'client private key set up';
+                } else {
+                    warn 'client private key not provided';
                 }
 
                 with $ciphers {
@@ -387,6 +409,7 @@ class IO::Socket::Async::SSL {
                     :$connected-promise, :$host, :$insecure, :$alpn
                 )
             }
+            put 'cp 1.3';
             await $connected-promise;
         }
     }
@@ -398,9 +421,10 @@ class IO::Socket::Async::SSL {
             when 1 { OpenSSL::Method::TLSv1_client_method() }
             when 1.1 { OpenSSL::Method::TLSv1_1_client_method() }
             when 1.2 { OpenSSL::Method::TLSv1_2_client_method() }
+            when 1.3 { OpenSSL::Method::TLS_client_method()     }
             default {
-                try { OpenSSL::Method::TLSv1_2_client_method() } ||
-                    try { OpenSSL::Method::TLSv1_client_method() }
+                try { OpenSSL::Method::TLS_client_method() } ||
+                    try { OpenSSL::Method::TLSv1_2_client_method() }
             }
         }
         OpenSSL::Ctx::SSL_CTX_new($method)
@@ -546,7 +570,7 @@ class IO::Socket::Async::SSL {
                         $server-private-key-file.Str, 1);
                 }
 
-                if defined($ca-certificate-file) || defined($ca-certificate-path) {
+                with $ca-certificate-file || $ca-certificate-path {
                     SSL_CTX_set_default_verify_paths($ctx);
 
                     SSL_CTX_load_verify_locations($ctx,
@@ -653,15 +677,17 @@ class IO::Socket::Async::SSL {
             when 1 { OpenSSL::Method::TLSv1_server_method() }
             when 1.1 { OpenSSL::Method::TLSv1_1_server_method() }
             when 1.2 { OpenSSL::Method::TLSv1_2_server_method() }
+            when 1.3 { OpenSSL::Method::TLS_server_method()     }
             default {
-                try { OpenSSL::Method::TLSv1_2_server_method() } ||
-                    try { OpenSSL::Method::TLSv1_server_method() }
+                try { OpenSSL::Method::TLS_server_method() } ||
+                    try { OpenSSL::Method::TLSv1_2_server_method() }
             }
         }
         OpenSSL::Ctx::SSL_CTX_new($method)
     }
 
     method !handle-buffers() {
+        put 'entering handle-buffers() ...';
         if !$!ssl {
             # Connection no longer active; don't do anything.
         }
@@ -772,6 +798,7 @@ class IO::Socket::Async::SSL {
                 }
             }
         }
+        put 'leaving handle-buffers() ...';
     }
 
     method !check-alpn() {
@@ -987,6 +1014,7 @@ class IO::Socket::Async::SSL {
                 return if $!shutdown-promise;
                 without $!shutdown-promise {
                     $!shutdown-promise = Promise.new;
+                    put 'ck close without-shutdown-promise';
                     self!handle-buffers();
                 }
             }
@@ -1035,3 +1063,17 @@ class IO::Socket::Async::SSL {
         }
     }
 }
+
+use NativeCall;
+sub ssl-err-msg(CArray[uint8], uint64 --> int64) is native('/usr/local/lib/openssl-err-msg.so') is symbol('openssl_error_message') { * }
+
+sub print-ssl-error is export {
+    constant buf_len = 1024;
+    state $buf = CArray[uint8].allocate(buf_len);
+
+    my Int $err-bytes = ssl-err-msg($buf, buf_len);
+    warn 'cannot get openssl error message' unless $err-bytes > 0;
+    put "openssl error: { Blob.new($buf[^$err-bytes]).decode }";
+}
+
+# vi:ft=raku

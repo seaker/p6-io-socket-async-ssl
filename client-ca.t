@@ -1,12 +1,37 @@
 use Test;
 use IO::Socket::Async::SSL:auth<github:seaker>;
+#use NativeCall;
+
+#sub ssl-err-msg(CArray[uint8], uint64 --> int64) is native('/usr/local/lib/openssl-err-msg.so') is symbol('openssl_error_message') { * }
+
+#sub print-ssl-error {
+#    constant buf_len = 1024;
+#    state $buf;
+#    BEGIN { $buf = CArray[uint8].allocate(buf_len) }
+#
+#    my Int $err-bytes = ssl-err-msg($buf, buf_len);
+#    warn 'cannot get openssl error message' unless $err-bytes > 0;
+#    put "openssl error: { Blob.new($buf[^$err-bytes]).decode }";
+#}
+
+sub posit(*@a) {
+    my $fr = callframe(5);
+    my Str $msg = "{ $fr.line }\@{ $fr.file }";
+    $msg ~= " $fr.code.name" if $fr.code ~~ Routine;
+
+    note $msg;
+    callsame;
+}
+
+#&(IO::Socket::Async.^find_method('connect')).wrap(&posit);
 
 my constant TEST_PORT = 54340;
 
 my $server = IO::Socket::Async::SSL.listen(
     'localhost', TEST_PORT,
     server-private-key-file => 't/certs-and-keys/server.key',
-    server-certificate-file => 't/certs-and-keys/server-bundle.crt'
+    server-certificate-file => 't/certs-and-keys/server-bundle.crt',
+    ca-certificate-file     => 't/certs-and-keys/internim.crt',
 );
 isa-ok $server, Supply, 'listen method returns a Supply';
 
@@ -18,6 +43,7 @@ dies-ok { await IO::Socket::Async.connect('localhost', TEST_PORT) }, 'Server not
             $conn.write($data);
         }
     }
+
     my $raw-conn;
     lives-ok { $raw-conn = await IO::Socket::Async.connect('localhost', TEST_PORT) },
         'Server listens after Supply is tapped';
@@ -26,8 +52,11 @@ dies-ok { await IO::Socket::Async.connect('localhost', TEST_PORT) }, 'Server not
     my $ssl-conn;
     lives-ok { $ssl-conn = await IO::Socket::Async::SSL.connect(
             'localhost', TEST_PORT,
-            server-ca-file => 't/certs-and-keys/ca.crt'
+            server-ca-file          => 't/certs-and-keys/ca.crt',           # must be ca.crt
+            client-ca-file          => 't/certs-and-keys/user01.crt',
+            client-private-key-file => 't/certs-and-keys/user01.key',
         )
+        #print-ssl-error;
     }, 'Can establish and SSL connection to the SSL server';
 
     lives-ok { $ssl-conn.write('penguin'.encode('ascii')) }, 'Can write to the SSL server';
@@ -43,6 +72,7 @@ dies-ok { await IO::Socket::Async.connect('localhost', TEST_PORT) }, 'Server not
     }
     is $got, 'penguin', 'SSL echo server got back expected data';
 
+#`[
     lives-ok { $ssl-conn.close }, 'Can close the SSL server connection';
 
     throws-like { await IO::Socket::Async::SSL.connect('localhost', TEST_PORT) },
@@ -52,9 +82,10 @@ dies-ok { await IO::Socket::Async.connect('localhost', TEST_PORT) }, 'Server not
     $echo-server-tap.close;
     dies-ok { await IO::Socket::Async.connect('localhost', TEST_PORT) },
         'Server not listening after tap is closed';
+]
 }
 
-{
+#`[
     my $server = IO::Socket::Async::SSL.listen(
         '127.0.0.1', TEST_PORT,
         server-private-key-file => 't/certs-and-keys/server.key',
@@ -70,8 +101,9 @@ dies-ok { await IO::Socket::Async.connect('localhost', TEST_PORT) }, 'Server not
         X::IO::Socket::Async::SSL::Verification,
         'When we connect to 127.0.0.1, certificate for localhost will not do';
     $echo-server-tap.close;
-}
+]
 
+#`[
 if IO::Socket::Async::SSL.supports-alpn {
     my $server = IO::Socket::Async::SSL.listen(
         'localhost', TEST_PORT+1,
@@ -196,5 +228,9 @@ my $server4 = IO::Socket::Async::SSL.listen(
 );
 
 throws-like { $server4.tap }, X::IO::Socket::Async::SSL, 'Certfile not there';
+}
+#]
 
 done-testing;
+
+# vi:ft=raku

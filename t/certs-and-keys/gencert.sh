@@ -9,3 +9,9 @@ openssl x509 -req -CA internim.crt -CAkey internim.key -in server.csr -out serve
 openssl x509 -in server.crt -outform DER -out server.der
 cat server.crt internim.crt >server-bundle.crt
 openssl pkcs12 -export -in server-bundle.crt -inkey server.key -out server-bundle.p12
+
+#openssl ecparam -genkey -name prime256v1 -noout -out user01.key
+#openssl req -x509 -newkey rsa -keyout user01.key
+openssl genrsa -out user01.key 4096
+openssl req -new -key user01.key -subj "/CN=user01" -out user01.csr
+openssl x509 -req -days 3650 -in user01.csr -CA internim.crt -CAkey internim.key -set_serial 01 -out user01.crt

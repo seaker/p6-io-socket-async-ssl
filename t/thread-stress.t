@@ -21,7 +21,7 @@ await do for ^4 {
     start {
         for 1..50 -> $i {
             my $server-ca-file = 't/certs-and-keys/ca.crt';
-            my $conn = await IO::Socket::Async::SSL.connect('localhost', TEST_PORT, :$server-ca-file);
+            my $conn = await IO::Socket::Async::SSL.connect('localhost', TEST_PORT, :version(1.2), :$server-ca-file);
             my $expected = "[string $i]" x (8 * $i);
             await $conn.write($expected.encode('ascii'));
             my $got = '';

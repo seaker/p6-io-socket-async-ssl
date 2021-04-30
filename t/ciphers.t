@@ -16,21 +16,27 @@ my $echo-server-tap = $server.tap: -> $conn {
 }
 END $echo-server-tap.close;
 
-dies-ok
-    {
-        await IO::Socket::Async::SSL.connect('localhost', TEST_PORT,
-            server-ca-file => 't/certs-and-keys/ca.crt',
-            ciphers        => 'MEDIUM')
-    },
-    'Connection fails when the are non-matching cipher expectations';
+dies-ok {
+    await IO::Socket::Async::SSL.connect(
+        'localhost', TEST_PORT,
+        server-ca-file => 't/certs-and-keys/ca.crt',
+        version        => 1.2,
+        ciphers        => 'MEDIUM'
+    )
+}, 'Connection fails when cipher expectations are not matched';
 
-lives-ok
-    {
-        my $s = await IO::Socket::Async::SSL.connect('localhost', TEST_PORT,
-            server-ca-file => 't/certs-and-keys/ca.crt',
-            ciphers        => 'HIGH');
-        $s.close;
-    },
-    'Connection ok when ciphers match up';
+lives-ok {
+    my $s = await IO::Socket::Async::SSL.connect(
+        'localhost', TEST_PORT,
+        server-ca-file => 't/certs-and-keys/ca.crt',
+        ciphers        => 'HIGH'
+    );
+    $s.close;
+}, 'Connection ok when ciphers match up';
+
+dies-ok {
+    my $s = await IO::Socket::Async::SSL.connect('localhost', TEST_PORT, ciphers => 'HIGH');
+    $s.close;
+}, 'Connection ok when ciphers match up, server certificate is a necessity';
 
 done-testing;

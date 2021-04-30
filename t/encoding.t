@@ -27,7 +27,8 @@ await $conn.write($enc.subbuf(0, 3));
 await $conn.write($enc.subbuf(3));
 
 my $got = '';
-await Promise.anyof: Promise.in(5), start react {
+#await Promise.anyof: Promise.in(5), start react {
+await Promise.in(5), start react {
     whenever $conn.Supply {
         $got ~= $_;
         done if $got.chars >= 4;
